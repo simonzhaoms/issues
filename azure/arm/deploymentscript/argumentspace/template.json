@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "variables": {
+    "umiName": "[concat(resourceGroup().name, 'umi')]",
+    "umiId": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('umiName'))]",
+    "roleAssignName": "[guid(resourceGroup().id, variables('umiName'))]",
+    "roleDefIdPre": "[concat(subscription().id, '/providers/Microsoft.Authorization/roleDefinitions/')]",
+    "Owner": "[concat(variables('roleDefIdPre'), '8e3af657-a8ff-443c-a75c-2fe8c4bcb635')]"
+  },
+  "resources": [
+    {
+      "name": "[variables('umiName')]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2018-11-30",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "name": "[variables('roleAssignName')]",
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2018-09-01-preview",
+      "dependsOn": ["[variables('umiName')]"],
+      "properties": {
+        "roleDefinitionId": "[variables('Owner')]",
+        "principalId": "[reference(variables('umiName')).principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "name": "[concat(resourceGroup().name, 'deployscript')]",
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2019-10-01-preview",
+      "dependsOn": [
+        "[variables('roleAssignName')]"
+      ],
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[variables('umiId')]": {}
+        }
+      },
+      "location": "[resourceGroup().location]",
+      "kind": "AzureCLI",
+      "properties": {
+        "azCliVersion": "2.0.80",
+        "retentionInterval": "P1D",
+        "cleanupPreference": "OnExpiration",
+        "primaryScriptUri": "https://raw.githubusercontent.com/simonzhaoms/issues/master/azure/arm/deploymentscript/argumentspace/main.sh",
+        "supportingScriptUris": [],
+        "arguments": "[concat(resourceGroup().name, ' ', subscription().displayName, ' ', resourceGroup().location)]"
+      }
+    }
+  ]
+}
